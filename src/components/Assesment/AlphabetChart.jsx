@@ -287,6 +287,58 @@ const AlphabetCard = ({ item, playAudio, isActive, mode, lang }) => {
   );
 };
 
+const HINDI_ORDER = [
+  "अ",
+  "आ",
+  "इ",
+  "ई",
+  "उ",
+  "ऊ",
+  "ऋ",
+  "ए",
+  "ऐ",
+  "ओ",
+  "औ",
+  "अं",
+  "अः",
+  "क",
+  "ख",
+  "ग",
+  "घ",
+  "ङ",
+  "च",
+  "छ",
+  "ज",
+  "झ",
+  "ञ",
+  "ट",
+  "ठ",
+  "ड",
+  "ढ",
+  "ण",
+  "त",
+  "थ",
+  "द",
+  "ध",
+  "न",
+  "प",
+  "फ",
+  "ब",
+  "भ",
+  "म",
+  "य",
+  "र",
+  "ल",
+  "व",
+  "श",
+  "ष",
+  "स",
+  "ह",
+  "क्ष",
+  "त्र",
+  "ज्ञ",
+];
+
 const TELUGU_ORDER = [
   "అ",
   "ఆ",
@@ -396,6 +448,11 @@ const KANNADA_ORDER = [
   "ಜ್ಞ",
 ];
 
+export const HINDI_ORDER_MAP = HINDI_ORDER.reduce((acc, letter, index) => {
+  acc[letter] = index;
+  return acc;
+}, {});
+
 export const TELUGU_ORDER_MAP = TELUGU_ORDER.reduce((acc, letter, index) => {
   acc[letter] = index;
   return acc;
@@ -455,6 +512,11 @@ const AlphabetChart = ({ open, onClose, lang }) => {
       })
       .filter((item) => item.display && item.word && item.audio && item.image)
       .sort((a, b) => {
+        if (activeLang === "hi") {
+          const aIndex = HINDI_ORDER_MAP[a.display] ?? Number.MAX_SAFE_INTEGER;
+          const bIndex = HINDI_ORDER_MAP[b.display] ?? Number.MAX_SAFE_INTEGER;
+          return aIndex - bIndex;
+        }
         if (activeLang === "te") {
           const aIndex = TELUGU_ORDER_MAP[a.display] ?? Number.MAX_SAFE_INTEGER;
           const bIndex = TELUGU_ORDER_MAP[b.display] ?? Number.MAX_SAFE_INTEGER;

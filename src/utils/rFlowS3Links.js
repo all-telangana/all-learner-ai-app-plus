@@ -1408,6 +1408,12 @@ export const तितलीAudio = "4a3ed0bb-625d-4baf-a5ea-4f22162d9e80.wav";
 export const हाथी2Audio = "2c55bff3-141a-4cc4-99ba-17f6feaf96f7.wav";
 export const छाताAudio = "92316d85-69ca-4841-a0ad-8039a65830d1.wav";
 export const धनियाAudio = "23067eab-daf8-4642-8f82-5272602af776.wav";
+export const अःImg = "d8f9b2a1-7c4d-4e92-a1b3-5c8e9f2d1a4b.png";
+export const अःAudio = "d8f9b2a1-7c4d-4e92-a1b3-5c8e9f2d1a4b.wav";
+export const ङImg = "e3a2c5f0-1b8d-4a7c-9f2e-6d4b3a1c5e9f.png";
+export const ङAudio = "e3a2c5f0-1b8d-4a7c-9f2e-6d4b3a1c5e9f.wav";
+export const ञImg = "f1c4e7d2-9a3b-4c8d-b5e1-2f0a8c7d6b5e.png";
+export const ञAudio = "f1c4e7d2-9a3b-4c8d-b5e1-2f0a8c7d6b5e.wav";
 
 //telegu
 
