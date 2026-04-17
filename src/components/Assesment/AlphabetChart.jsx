@@ -25,6 +25,7 @@ import {
   wordData,
   TeluguGunithas,
   KannadaGunithas,
+  HindiGunithas,
 } from "../../RFlow/Barakhadi";
 import { getAssetAudioUrl, getAssetUrl } from "../../utils/rFlowS3Links";
 import { interact } from "../../services/telemetryService";
@@ -541,6 +542,8 @@ const AlphabetChart = ({ open, onClose, lang }) => {
       gunithaSource = TeluguGunithas;
     } else if (activeLang === "kn") {
       gunithaSource = KannadaGunithas;
+    } else if (activeLang === "hi") {
+      gunithaSource = HindiGunithas;
     }
 
     const gunithaItems = gunithaSource
