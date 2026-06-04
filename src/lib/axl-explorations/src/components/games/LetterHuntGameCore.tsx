@@ -567,7 +567,7 @@ export function LetterHuntGameCore({
         }
         
         return new Promise((resolve) => {
-          const audioPath = `/audio/letter-hunt-incorrect-message/${feedbackLanguage}/feedback${feedbackNumber}.wav`;
+          const audioPath = `${process.env.PUBLIC_URL}/audio/letter-hunt-incorrect-message/${feedbackLanguage}/feedback${feedbackNumber}.wav`;
           const audio = new Audio(audioPath);
           activeAudioRefs.current.add(audio);
           attachSlowLoadToast(audio);
