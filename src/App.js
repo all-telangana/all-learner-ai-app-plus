@@ -1,3 +1,4 @@
+/* global globalThis */
 import React, { useEffect, useRef, useState } from "react";
 import { ThemeProvider } from "@mui/material";
 import { StyledEngineProvider } from "@mui/material/styles";
@@ -10,12 +11,17 @@ import theme from "./assets/styles/theme";
 import axios from "axios";
 import { getFontFamily } from "./utils/fontUtils";
 import { getLocalData } from "./utils/constants";
+import FingerprintJS from "@fingerprintjs/fingerprintjs";
+import { startEvent } from "./services/callTelemetryIntract";
 import {
+  end,
   error as logTelemetryError,
   initialize,
 } from "./services/telemetryService";
+import { logoutUser } from "./services/orchestration/orchestrationService";
 import { reportError } from "./utils/errorReporter";
 import { ErrorBoundary } from "./components/ErrorBoundary";
+import { useNavigate } from "react-router-dom";
 import GetSetResultLoadingOverlay from "./components/GetSetResultLoadingOverlay";
 import SystemBanners from "./components/SystemBanners/SystemBanners";
 import ServerErrorScreen from "./components/ServerErrorScreen/ServerErrorScreen";
@@ -56,6 +62,9 @@ const App = () => {
   // Ref so the axios interceptor (set up once) can always access the latest setter
   const networkErrorRef = useRef(null);
   networkErrorRef.current = setShowNetworkError;
+
+  const navigate = useNavigate();
+  const [appInitialized, setAppInitialized] = useState(false);
 
   // Update CSS variable --theme-font based on language
   useEffect(() => {
@@ -189,6 +198,7 @@ const App = () => {
   // initialize() is idempotent (guarded by CsTelemetryModule.instance.isInitialised),
   // so calling it here is a no-op when the user just logged in normally.
   useEffect(() => {
+    if (process.env.REACT_APP_IS_APP_IFRAME === "true") return;
     const apiToken = localStorage.getItem("apiToken");
     if (!apiToken) return;
 
@@ -341,9 +351,7 @@ const App = () => {
               error?.response?.data?.msg;
             const displayMessage =
               typeof raw === "string" && raw.trim() ? raw.trim() : undefined;
-            const notifyParent =
-              !!localStorage.getItem("contentSessionId") &&
-              process.env.REACT_APP_IS_APP_IFRAME === "true";
+            const notifyParent = process.env.REACT_APP_IS_APP_IFRAME === "true";
             openAuthSessionExpiredModal({
               message: displayMessage,
               notifyParent,
@@ -353,6 +361,117 @@ const App = () => {
         return Promise.reject(error);
       }
     );
+  }, []);
+
+  // Step 1: Check token/profile
+  useEffect(() => {
+    const token = localStorage.getItem("apiToken");
+    const profileName = getLocalData("profileName");
+
+    if (token && profileName) {
+      setAppInitialized(true);
+    } else if (process.env.REACT_APP_IS_APP_IFRAME === "true") {
+      try {
+        globalThis.parent?.postMessage(
+          { type: "SESSION_EXPIRED" },
+          globalThis?.location?.ancestorOrigins?.[0] ||
+            globalThis.parent.location.origin
+        );
+      } catch (error) {
+        console.error("Parent SESSION_EXPIRED postMessage failed:", error);
+      }
+    } else {
+      navigate("/login");
+    }
+  }, [navigate]);
+
+  // Step 2: Initialize telemetry
+  useEffect(() => {
+    if (!appInitialized) return;
+    if (process.env.REACT_APP_IS_APP_IFRAME !== "true") return;
+
+    const initService = async (visitorId) => {
+      await initialize({
+        context: {
+          mode: process.env.REACT_APP_MODE,
+          authToken: localStorage.getItem("apiToken"),
+          did: localStorage.getItem("deviceId") || visitorId,
+          uid: getLocalData("profileName") || "anonymous",
+          channel: process.env.REACT_APP_CHANNEL,
+          env: process.env.REACT_APP_ENV,
+          pdata: {
+            id: process.env.REACT_APP_ID,
+            ver: process.env.REACT_APP_VER,
+            pid: process.env.REACT_APP_PID,
+          },
+          tags: [""],
+          timeDiff: 0,
+          host: process.env.REACT_APP_HOST,
+          endpoint: process.env.REACT_APP_ENDPOINT,
+          apislug: process.env.REACT_APP_APISLUG,
+        },
+        config: {},
+        metadata: {},
+      });
+
+      if (localStorage.getItem("contentSessionId") === null) {
+        startEvent();
+      }
+    };
+
+    const setFp = async () => {
+      const fp = await FingerprintJS.load();
+      const { visitorId } = await fp.get();
+      await initService(visitorId);
+    };
+
+    setFp().catch((err) => console.error("Telemetry init failed:", err));
+  }, [appInitialized]);
+
+  // AXL appbar logout: invalidate the token and flush telemetry here,
+  // then ack so the parent can safely unmount this iframe.
+  useEffect(() => {
+    if (process.env.REACT_APP_IS_APP_IFRAME !== "true") return;
+
+    const handleParentMessage = async (event) => {
+      // Only accept LOGOUT from the trusted AXL parent origin.
+      const trustedParentOrigin = process.env.REACT_APP_AXL_HOST;
+      if (!trustedParentOrigin || event.origin !== trustedParentOrigin) return;
+      if (event?.data?.type !== "LOGOUT") return;
+      // Reply on the parent's MessagePort instead of window.parent.postMessage.
+      const replyPort = event.ports?.[0];
+      if (!replyPort) {
+        console.warn("LOGOUT received without reply port; ack will be skipped");
+      }
+      try {
+        await logoutUser();
+      } catch (error) {
+        console.error("Logout API failed:", error);
+      }
+      try {
+        end({});
+        // Flush the SDK queue and wait ~1s so the XHR lands before
+        // AXL unmounts this iframe (which would cancel it).
+        globalThis.telemetry?.syncEvents?.();
+        await new Promise((resolve) => setTimeout(resolve, 1000));
+      } catch (error) {
+        console.error("Telemetry end event failed:", error);
+      }
+      try {
+        sessionStorage.clear();
+      } catch (error) {
+        console.error("sessionStorage clear failed:", error);
+      }
+      try {
+        replyPort?.postMessage({ type: "LOGOUT_COMPLETE" });
+        replyPort?.close();
+      } catch (error) {
+        console.error("LOGOUT_COMPLETE port message failed:", error);
+      }
+    };
+
+    window.addEventListener("message", handleParentMessage);
+    return () => window.removeEventListener("message", handleParentMessage);
   }, []);
 
   return (

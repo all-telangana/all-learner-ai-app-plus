@@ -1,4 +1,5 @@
-import React, { useState, useRef } from "react";
+/* global globalThis */
+import React, { useState, useRef, useEffect } from "react";
 import { useNavigate } from "react-router-dom";
 import {
   Typography,
@@ -68,6 +69,7 @@ const LoginPage = () => {
   };
   const [showModal, setShowModal] = useState(false);
   const [showAudioDiagnostic, setShowAudioDiagnostic] = useState(false);
+  const [loading, setLoading] = useState(false);
 
   const handleTabChange = (_event, newValue) => {
     clearFormAlert();
@@ -230,6 +232,7 @@ const LoginPage = () => {
 
     const effectiveUsername = getEffectiveUsername();
     localStorage.clear();
+    setLoading(true);
 
     setIsSubmitting(true);
     try {
@@ -263,8 +266,37 @@ const LoginPage = () => {
       handleLoginError(error);
     } finally {
       setIsSubmitting(false);
+      setLoading(false);
     }
   };
+
+  useEffect(() => {
+    if (localStorage.getItem("apiToken") === null) return;
+
+    // If the user came from somewhere inside the app (e.g., back-button from
+    // /practice), return them there. Otherwise default to /discover-start.
+    if (globalThis.history.length > 1) {
+      navigate(-1);
+    } else {
+      navigate("/discover-start", { replace: true });
+    }
+  }, [navigate]);
+
+  if (loading) {
+    return (
+      <Box
+        sx={{
+          height: "100vh",
+          display: "flex",
+          justifyContent: "center",
+          alignItems: "center",
+          backgroundColor: "rgba(240,240,240,0.6)",
+        }}
+      >
+        <CircularProgress size="3rem" sx={{ color: "#E15404" }} />
+      </Box>
+    );
+  }
 
   if (networkError) {
     return <ServerErrorScreen onRetry={() => setNetworkError(false)} />;

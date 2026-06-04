@@ -1,14 +1,14 @@
-name: ALL rig dev Deployment
+name: AXL test-dev Deployment
 
 on:
   push:
     branches:
-      - all-2.0.0_
+      - axl-3.0.5
 
 jobs:
   deploy:
     runs-on: ubuntu-latest
-    environment: all-dev-rig
+    environment: axl-dev-test
 
     steps:
       - name: Checkout code
@@ -20,10 +20,14 @@ jobs:
           node-version: "18"
 
       - name: Configure AWS credentials
+        env:
+          AWS_ACCESS_KEY_ID: ${{ secrets.AXL_AWS_ACCESS_KEY_ID }}
+          AWS_SECRET_ACCESS_KEY: ${{ secrets.AXL_AWS_SECRET_ACCESS_KEY }}
+          AWS_REGION: ap-south-1
         run: |
-          aws configure set aws_access_key_id ${{ secrets.AWS_ACCESS_KEY_ID }}
-          aws configure set aws_secret_access_key ${{ secrets.AWS_SECRET_ACCESS_KEY }}
-          aws configure set default.region ${{ secrets.AWS_REGION }}
+          aws configure set aws_access_key_id "$AWS_ACCESS_KEY_ID"
+          aws configure set aws_secret_access_key "$AWS_SECRET_ACCESS_KEY"
+          aws configure set default.region "$AWS_REGION"
 
       - name: Clean up node_modules and package-lock.json
         run: |
@@ -38,6 +42,8 @@ jobs:
 
       - name: Build and Package Application
         env:
+          NODE_OPTIONS: "--max_old_space_size=4096"
+          PUBLIC_URL: /all-app
           SKIP_PREFLIGHT_CHECK: ${{ vars.SKIP_PREFLIGHT_CHECK }}
           REACT_APP_MODE: ${{ vars.REACT_APP_MODE }}
           REACT_APP_LOGIN_MODE: ${{ vars.REACT_APP_LOGIN_MODE || 'product' }}
@@ -56,10 +62,10 @@ jobs:
           REACT_APP_CONTENT_SIZE: ${{ vars.REACT_APP_CONTENT_SIZE }}
           REACT_APP_LANGUAGE: ${{ vars.REACT_APP_LANGUAGE }}
           REACT_APP_TELEMETRY_MODE: ${{ vars.REACT_APP_TELEMETRY_MODE }}
-          REACT_APP_VIRTUAL_ID_HOST: ${{ vars.REACT_APP_VIRTUAL_ID_HOST_TN_DEV }}
-          REACT_APP_LEARNER_AI_ORCHESTRATION_HOST: ${{ vars.REACT_APP_LEARNER_AI_ORCHESTRATION_HOST_TN_DEV }}
-          REACT_APP_LEARNER_AI_APP_HOST: ${{ vars.REACT_APP_LEARNER_AI_APP_HOST_TN_DEV }}
-          REACT_APP_CONTENT_SERVICE_APP_HOST: ${{ vars.REACT_APP_CONTENT_SERVICE_APP_HOST_TN_DEV }}
+          REACT_APP_VIRTUAL_ID_HOST: ${{ vars.REACT_APP_VIRTUAL_ID_HOST }}
+          REACT_APP_LEARNER_AI_ORCHESTRATION_HOST: ${{ vars.REACT_APP_LEARNER_AI_ORCHESTRATION_HOST }}
+          REACT_APP_LEARNER_AI_APP_HOST: ${{ vars.REACT_APP_LEARNER_AI_APP_HOST }}
+          REACT_APP_CONTENT_SERVICE_APP_HOST: ${{ vars.REACT_APP_CONTENT_SERVICE_APP_HOST }}
           REACT_APP_CAPTURE_AUDIO: ${{ vars.REACT_APP_CAPTURE_AUDIO }}
           REACT_APP_AWS_S3_BUCKET_NAME: ${{ vars.REACT_APP_AWS_S3_BUCKET_NAME }}
           REACT_APP_AWS_S3_BUCKET_URL: ${{ vars.REACT_APP_AWS_S3_BUCKET_URL }}
@@ -82,6 +88,8 @@ jobs:
           REACT_APP_SHOW_HELP_VIDEO_LINK: ${{ vars.REACT_APP_SHOW_HELP_VIDEO_LINK }}
           REACT_APP_MAX_LEVEL: ${{ vars.REACT_APP_MAX_LEVEL }}
           REACT_APP_LEARNER_AI_BASE_URL: ${{ vars.REACT_APP_LEARNER_AI_BASE_URL }}
+          REACT_APP_USE_RECOMMENDATION_API: ${{ vars.REACT_APP_USE_RECOMMENDATION_API }}
+          REACT_APP_ENGAGEMENT_PREDICT_URL: ${{ vars.REACT_APP_ENGAGEMENT_PREDICT_URL }}
           REACT_APP_TRACKING_API_BASE_URL: ${{ vars.REACT_APP_TRACKING_API_BASE_URL}}
           REACT_APP_PRESIGNED_URL_SERVICE: ${{ vars.REACT_APP_PRESIGNED_URL_SERVICE }}
           REACT_APP_RECOMMENDATION_API_LANGUAGES: ${{ vars.REACT_APP_RECOMMENDATION_API_LANGUAGES }}
@@ -96,20 +104,28 @@ jobs:
           CI: false # Disabling CI to not treat warnings as errors
         run: npm run build
 
-      - name: Deploy to S3 Bucket
-        run: aws s3 sync ./build s3://sballappliance/
+      - name: Deploy audio to S3 root
+        run: aws s3 sync ./build/audio s3://axl-dev-test/audio/ --delete --region ap-south-1
+
+      - name: Deploy app bundle (excluding audio)
+        run: aws s3 sync ./build s3://axl-dev-test/all-app/ --exclude "audio/*" --delete --region ap-south-1
+
+      - name: Remove stale audio from /all-app
+        run: aws s3 rm s3://axl-dev-test/all-app/audio/ --recursive --region ap-south-1
 
       - name: Debug Environment Variables
+        env:
+          BUCKET_NAME: ${{ secrets.AXL_S3_BUCKET_NAME }}
         run: |
           echo "REACT_APP_AWS_S3_BUCKET_NAME: $REACT_APP_AWS_S3_BUCKET_NAME"
           echo "AWS_REGION: $AWS_REGION"
-          echo "secrate": ${{ vars.REACT_APP_AWS_S3_BUCKET_NAME }}
+          echo "secrate: $BUCKET_NAME"
 
       - name: Cloudfront Invalidation
-        uses: chetan/invalidate-cloudfront-action@master
+        uses: chetan/invalidate-cloudfront-action@fce6f6f546fae2e9fe55f3bd1411063a908f2557 # master @ 2021-12-10
         env:
-          DISTRIBUTION: ${{ secrets.AWS_DISTRIBUTION }}
+          DISTRIBUTION: ${{ secrets.CLOUDFRONT_DISTRIBUTION_ID_DEV_TEST }}
           PATHS: "/*"
-          AWS_REGION: ${{ secrets.AWS_REGION }}
-          AWS_ACCESS_KEY_ID: ${{ secrets.AWS_ACCESS_KEY_ID }}
-          AWS_SECRET_ACCESS_KEY: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
+          AWS_REGION: ${{ secrets.AXL_AWS_REGION }}
+          AWS_ACCESS_KEY_ID: ${{ secrets.AXL_AWS_ACCESS_KEY_ID }}
+          AWS_SECRET_ACCESS_KEY: ${{ secrets.AXL_AWS_SECRET_ACCESS_KEY }}

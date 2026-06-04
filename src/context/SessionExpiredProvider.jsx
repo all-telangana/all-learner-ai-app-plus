@@ -1,3 +1,4 @@
+/* global globalThis */
 import React, { useCallback, useEffect, useRef, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { MessageDialog } from "../components/Assesment/Assesment";
@@ -22,10 +23,10 @@ export function SessionExpiredProvider({ children }) {
   const runAuthLogout = useCallback(
     (notifyParent) => {
       if (notifyParent) {
-        window.parent.postMessage(
-          { message: "Logged out!" },
-          window?.location?.ancestorOrigins?.[0] ||
-            window.parent.location.origin
+        globalThis.parent.postMessage(
+          { type: "SESSION_EXPIRED" },
+          globalThis?.location?.ancestorOrigins?.[0] ||
+            globalThis.parent.location.origin
         );
       }
       localStorage.clear();
